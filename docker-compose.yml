@@ -1,0 +1,68 @@
+version: "3.9"  # 👈 ajoute une version moderne pour éviter les warnings
+
+services:
+  postgres:
+    image: postgres:15
+    restart: always
+    environment:
+      POSTGRES_USER: loupuser
+      POSTGRES_PASSWORD: louppass
+      POSTGRES_DB: lesloups
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  pgadmin:
+    image: dpage/pgadmin4
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@loups.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5055:80"
+    depends_on:
+      - postgres
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+
+  http-server:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.http
+    depends_on:
+      - postgres
+    environment:
+      - DB_URL=postgresql://loupuser:louppass@postgres:5432/lesloups
+    ports:
+      - "5000:5000"
+    working_dir: /app
+    command: python backend/http_server/app.py
+
+  tcp-server:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.tcp
+    depends_on:
+      - postgres
+    environment:
+      - PYTHONPATH=/app  # 👈 nécessaire pour corriger ton bug d'import
+      - DB_URL=postgresql://loupuser:louppass@postgres:5432/lesloups
+    ports:
+      - "6000:6000"
+    working_dir: /app
+    command: python backend/tcp_server/server.py
+
+  seed:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.http  # Réutilisation HTTP (OK)
+    command: python seed/seed_data.py
+    depends_on:
+      - postgres
+    environment:
+      - DB_URL=postgresql://loupuser:louppass@postgres:5432/lesloups
+
+volumes:
+  pgdata:
+  pgadmin-data:
